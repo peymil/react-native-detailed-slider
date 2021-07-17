@@ -1,6 +1,7 @@
 import React, { useImperativeHandle, useState } from 'react';
 import SliderBase from './SliderBase';
 import SliderHandle from './SliderHandle';
+
 type SliderProps = {
     minValue: number;
     maxValue: number;
@@ -25,14 +26,23 @@ const Slider = React.forwardRef(
         }: SliderProps,
         ref: React.Ref<SliderRef>
     ) => {
-        const [value, setValue] = useState(initialValue);
+        const [currentValue, setCurrentValue] = useState(initialValue);
         useImperativeHandle(ref, () => ({
             changeValue: (index) => {
-                setValue(index);
+                setCurrentValue(index);
             },
             openSensitiveSlider: () => {},
         }));
-        return <SliderBase>{children || <SliderHandle />}</SliderBase>;
+        return (
+            <SliderBase
+                value={value}
+                onClick={(value) => {
+                    setCurrentValue(value);
+                }}
+            >
+                {children || <SliderHandle />}
+            </SliderBase>
+        );
     }
 );
 export default Slider;
