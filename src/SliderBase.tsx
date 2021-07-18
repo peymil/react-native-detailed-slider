@@ -11,6 +11,7 @@ import Animated, {
     runOnJS,
     useAnimatedGestureHandler,
     useAnimatedStyle,
+    useAnimatedReaction,
     useSharedValue,
 } from 'react-native-reanimated';
 type SliderBaseProps = {
@@ -39,6 +40,7 @@ const SliderBase = ({
     const previousSlider = useSharedValue(0);
     const sliderHeight = useSharedValue(5);
     const [isSwipedUp, setIsSwipedUp] = useState(false);
+    const [popupLayout, setPopupLayout] = useState([]);
     // const handler = useAnimatedGestureHandler(
     //     {
     //         onStart: (event, context) => {
@@ -48,52 +50,6 @@ const SliderBase = ({
     //     },
     //     []
     // );
-    const panHandler = useAnimatedGestureHandler(
-        {
-            onStart: (event, context) => {
-                // slider.value = event.absoluteX - containerLayout.x;
-                // previousSlider.value = slider.value;
-            },
-            onActive: (event, context) => {
-                sliderHeight.value = event.x;
-                if (event.y > containerLayout.height * 2) {
-                    runOnJS(setIsSwipedUp)(true);
-                }
-            },
-            onEnd: (event, context) => {
-                if (isSwipedUp) runOnJS(setIsSwipedUp)(false);
-            },
-        },
-        []
-    );
-    // const pan = PanResponder.create({
-    //     onStartShouldSetPanResponder: (evt, gestureState) => true,
-    //     onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
-    //     onMoveShouldSetPanResponder: (evt, gestureState) => true,
-    //     onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
-    //     onPanResponderTerminationRequest: (evt, gestureState) => true,
-    //     onPanResponderStart: (evt, gestureState) => {},
-    //     onPanResponderMove: (evt, gestureState) => {},
-    //     onPanResponderRelease: (evt, gestureState) => {},
-    // });
-    // const SliderPan = PanResponder.create({
-    //     onStartShouldSetPanResponder: (evt, gestureState) => true,
-    //     onStartShouldSetPanResponderCapture: (evt, gestureState) => true,
-    //     onMoveShouldSetPanResponder: (evt, gestureState) => true,
-    //     onMoveShouldSetPanResponderCapture: (evt, gestureState) => true,
-    //     onPanResponderTerminationRequest: (evt, gestureState) => true,
-    //     onPanResponderStart: (evt, gestureState) => {},
-    //     onPanResponderMove: (evt, gestureState) => {},
-    //     onPanResponderRelease: (evt, gestureState) => {},
-    // });
-    const sliderAnimatedStyle = useAnimatedStyle(
-        () => ({
-            transform: [
-                { translateX: slider.value, scaleY: sliderHeight.value },
-            ],
-        }),
-        []
-    );
     const pointLocations = useMemo(() => {
         const offsetsSum = offsets.reduce((pre, curr) => pre + curr);
         const pointLocations = offsets.map(
@@ -122,6 +78,44 @@ const SliderBase = ({
         return arrangedPointLocations;
         //for end
     }, [containerLayout]);
+
+    const panHandler = useAnimatedGestureHandler(
+        {
+            onStart: (event, context) => {
+                // slider.value = event.absoluteX - containerLayout.x;
+                // previousSlider.value = slider.value;
+            },
+            onActive: (event, context) => {
+                sliderHeight.value = event.x;
+                const previousOffset = pointLocations[value - 1];
+                const currentOffset = pointLocations[value];
+                const nextOffset = pointLocations[value + 1];
+                if (sliderHeight.value > nextOffset)
+                    runOnJS(setValue)(value + 1);
+                if (sliderHeight.value < previousOffset)
+                    runOnJS(setValue)(value - 1);
+                if (
+                    event.y > containerLayout.height * 2 &&
+                    Array.isArray(pointLocations[value])
+                ) {
+                    runOnJS(setIsSwipedUp)(true);
+                }
+            },
+            onEnd: (event, context) => {
+                if (isSwipedUp) runOnJS(setIsSwipedUp)(false);
+            },
+        },
+        []
+    );
+    const sliderAnimatedStyle = useAnimatedStyle(
+        () => ({
+            transform: [
+                { translateX: slider.value, scaleY: sliderHeight.value },
+            ],
+        }),
+        []
+    );
+
     const findInNestedArray = useCallback((index) => {
         let i = 0;
         for (let elem of pointLocations) {
@@ -152,7 +146,19 @@ const SliderBase = ({
                             bottom: '100%',
                             left: slider.value,
                         }}
-                    />
+                    >
+                        {valueGroup.map(() => {
+                            <View
+                                onLayout={() => {
+                                    popupLayout.push();
+                                    if (
+                                        popupLayout.length === valueGroup.length
+                                    )
+                                        setPopupLayout(popupLayout);
+                                }}
+                            ></View>;
+                        })}
+                    </View>
                 ) : null}
                 {pointLocations.map((offset) => {
                     if (Array.isArray(offset)) return <NestedPoints />;
