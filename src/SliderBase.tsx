@@ -29,6 +29,7 @@ const SliderBase = ({
     closeness,
 }: SliderBaseProps) => {
     const [value, setValue] = useState(0);
+    const [valueGroup, setValueGroup] = useState<number[]>([]);
     const [containerLayout, setContainerLayout] = useState({
         x: 0,
         y: 0,
@@ -40,7 +41,26 @@ const SliderBase = ({
     const previousSlider = useSharedValue(0);
     const sliderHeight = useSharedValue(5);
     const [isSwipedUp, setIsSwipedUp] = useState(false);
+    const [currentHovering, setCurrentHovering] = useState(-1);
     const [popupLayout, setPopupLayout] = useState([]);
+    const findCloseValues = useCallback((currentValue: number) => {
+        const currentPoint = pointLocations[currentValue];
+        const closePoints = [currentPoint];
+        for (let index = 1; index > pointLocations.length / 2; index++) {
+            const previousPoint = pointLocations[currentValue - index];
+            const nextPoint = pointLocations[currentValue + index];
+            const nextPointDist = nextPoint - currentPoint;
+            const previousPointDist = currentPoint - previousPoint;
+            const isNextPointClose = closeness > nextPointDist;
+            const isPreviousPointClose = closeness > previousPointDist;
+            if (isNextPointClose) closePoints.push(nextPoint);
+            if (isPreviousPointClose) closePoints.unshift(previousPoint);
+            if (!isPreviousPointClose && !isNextPointClose) {
+                return closePoints;
+            }
+        }
+        return closePoints;
+    }, []);
     // const handler = useAnimatedGestureHandler(
     //     {
     //         onStart: (event, context) => {
@@ -56,26 +76,25 @@ const SliderBase = ({
             (offset) => containerLayout.width * (offset / offsetsSum)
         );
         //for start
-        let arrangedPointLocations = [];
-        let currentClosePoints: Array<number> = [];
-        let index = 0;
-        for (let pointLocation of pointLocations) {
-            const previousPointLocation = pointLocations[index - 1];
-            if (
-                closeness >
-                (previousPointLocation || currentClosePoints[0]) - pointLocation
-            ) {
-                currentClosePoints.push(pointLocation);
-            } else {
-                if (currentClosePoints[0]) {
-                    arrangedPointLocations.push(currentClosePoints);
-
-                    currentClosePoints = [];
-                } else arrangedPointLocations.push(pointLocation);
-            }
-            index++;
-        }
-        return arrangedPointLocations;
+        // let arrangedPointLocations = [];
+        // let currentClosePoints: Array<number> = [];
+        // let index = 0;
+        // for (let pointLocation of pointLocations) {
+        //     const previousPointLocation = pointLocations[index - 1];
+        // if (
+        //     closeness >
+        //     (previousPointLocation || currentClosePoints[0]) - pointLocation
+        // ) {
+        //         currentClosePoints.push(pointLocation);
+        //     } else {
+        //         if (currentClosePoints[0]) {
+        //             arrangedPointLocations.push(currentClosePoints);
+        //             currentClosePoints = [];
+        //         } else arrangedPointLocations.push(pointLocation);
+        //     }
+        //     index++;
+        // }
+        return pointLocations;
         //for end
     }, [containerLayout]);
 
@@ -90,19 +109,22 @@ const SliderBase = ({
                 const previousOffset = pointLocations[value - 1];
                 const currentOffset = pointLocations[value];
                 const nextOffset = pointLocations[value + 1];
-                if (sliderHeight.value > nextOffset)
+                const closeValues = findCloseValues(value);
+                if (sliderHeight.value > nextOffset) {
                     runOnJS(setValue)(value + 1);
-                if (sliderHeight.value < previousOffset)
+                } else if (sliderHeight.value < previousOffset) {
                     runOnJS(setValue)(value - 1);
+                }
                 if (
                     event.y > containerLayout.height * 2 &&
-                    Array.isArray(pointLocations[value])
+                    closeValues.length > 1
                 ) {
-                    runOnJS(setIsSwipedUp)(true);
+                    if (valueGroup.length < 1)
+                        runOnJS(setValueGroup)(closeValues);
                 }
             },
             onEnd: (event, context) => {
-                if (isSwipedUp) runOnJS(setIsSwipedUp)(false);
+                if (valueGroup) runOnJS(setValueGroup)([]);
             },
         },
         []
@@ -144,11 +166,13 @@ const SliderBase = ({
                         style={{
                             position: 'absolute',
                             bottom: '100%',
+                            width: '100%',
                             left: slider.value,
                         }}
                     >
                         {valueGroup.map(() => {
                             <View
+                                isHovering={true}
                                 onLayout={() => {
                                     popupLayout.push();
                                     if (
@@ -161,7 +185,7 @@ const SliderBase = ({
                     </View>
                 ) : null}
                 {pointLocations.map((offset) => {
-                    if (Array.isArray(offset)) return <NestedPoints />;
+                    if (Array.isArray(offset)) offset.map(() => <Point />);
                     else return <Point />;
                 })}
                 {children}
